@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+
+'''
+Check MD5 sums for 'Multi-Arch: same' packages.
+'''
+
+import argparse
+import collections
+import os
+import re
+import sys
+import subprocess as ipc
+
+import apt_pkg
+
+default_mirror = 'http://ftp.debian.org/debian'
+default_distribution = 'unstable'
+default_architectures = 'i386', 'amd64'
+
+def setup_proxies():
+    apt_pkg.init_config()
+    os.environ['http_proxy'] = apt_pkg.config.get('Acquire::http::Proxy', '')
+    os.environ['ftp_proxy'] = apt_pkg.config.get('Acquire::ftp::Proxy', '')
+
+def log_download(url):
+    print('D: {url}'.format(url=url), file=sys.stderr)
+
+def log_action(package, version, action):
+    print(
+        'I: {pkg} {ver} => {action}'.format(pkg=package, ver=version, action=action),
+        file=sys.stderr
+    )
+    sys.stderr.flush()
+
+def log_error(package, version, message):
+    print(
+        'E: {pkg} {ver} => {message}'.format(pkg=package, ver=version, message=message),
+        file=sys.stderr
+    )
+
+def do_qa(options):
+    data = collections.defaultdict(dict)
+    for architecture in options.architectures:
+        for section in 'main', 'contrib', 'non-free':
+            url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
+                mirror=options.mirror,
+                dist=options.distribution,
+                section=section,
+                arch=architecture
+            )
+            log_download(url)
+            child = ipc.Popen('wget -O- -q {} | gzip -dc'.format(url), shell=True, stdout=ipc.PIPE)
+            for pkgdata in apt_pkg.TagFile(child.stdout):
+                if pkgdata.get('Multi-Arch', '') == 'same':
+                    pkgname = pkgdata['Package']
+                    pkgversion = pkgdata['Version']
+                    url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
+                    data[pkgname, pkgversion][architecture] = url
+            if child.wait() != 0:
+                raise IOError
+    last = None
+    for (pkgname, pkgversion), urls in data.items():
+        if len(urls) <= 1:
+            log_action(pkgname, pkgversion, 'skip')
+            continue
+        log_action(pkgname, pkgversion, 'download ({})'.format(' '.join(urls.keys())))
+        pkgdata = collections.defaultdict(
+            lambda: collections.defaultdict(set)
+        )
+        for architecture, url in urls.items():
+            log_download(url)
+            child = ipc.Popen('wget -O- -q {} | dpkg-deb -I /dev/stdin md5sums 2>/dev/null'.format(url), shell=True, stdout=ipc.PIPE)
+            for line in child.stdout:
+                md5sum = line[:32]
+                filename = line[34:-1]
+                pkgdata[filename][md5sum].add(architecture)
+            if child.wait() != 0:
+                log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
+                continue
+        for filename, md5sums in pkgdata.items():
+            if len(md5sums) <= 1:
+                continue
+            if last != (pkgname, pkgversion):
+                if last is not None:
+                    print()
+                print('[{name} {ver}]'.format(name=pkgname, ver=pkgversion))
+                last = (pkgname, pkgversion)
+            print(filename.decode('UTF-8', 'replace'))
+            for md5sum, architectures in sorted(md5sums.items()):
+                print('  {md5sum} {arch}'.format(
+                    md5sum=md5sum.decode('ASCII'),
+                    arch=' '.join(architectures)
+                ))
+
+def main():
+    setup_proxies()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mirror', default=default_mirror)
+    parser.add_argument('--distribution', default=default_distribution)
+    parser.add_argument('--architectures', nargs='+', default=default_architectures)
+    options = parser.parse_args()
+    do_qa(options)
+
+if __name__ == '__main__':
+    main()
+
+# vim:ts=4 sw=4 et
