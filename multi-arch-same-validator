@@ -53,6 +53,8 @@ def do_qa(options):
             for pkgdata in apt_pkg.TagFile(child.stdout):
                 if pkgdata.get('Multi-Arch', '') == 'same':
                     pkgname = pkgdata['Package']
+                    if pkgname not in options.packages:
+                        continue
                     pkgversion = pkgdata['Version']
                     url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
                     data[pkgname, pkgversion][architecture] = url
@@ -92,13 +94,21 @@ def do_qa(options):
                     arch=' '.join(architectures)
                 ))
 
+class Universum(object):
+
+    def __contains__(self, other):
+        return True
+
 def main():
     setup_proxies()
     parser = argparse.ArgumentParser()
     parser.add_argument('--mirror', default=default_mirror)
     parser.add_argument('--distribution', default=default_distribution)
     parser.add_argument('--architectures', nargs='+', default=default_architectures)
+    parser.add_argument('--packages', nargs='+', default=Universum(), help='check only these packages (default: check all)')
     options = parser.parse_args()
+    if isinstance(options.packages, list):
+        options.packages = frozenset(options.packages)
     do_qa(options)
 
 if __name__ == '__main__':
