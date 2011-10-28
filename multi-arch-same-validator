@@ -15,7 +15,6 @@ import apt_pkg
 
 default_mirror = 'http://ftp.debian.org/debian'
 default_distribution = 'unstable'
-default_architectures = 'i386', 'amd64'
 
 def setup_proxies():
     apt_pkg.init_config()
@@ -40,6 +39,22 @@ def log_error(package, version, message):
 
 def do_qa(options):
     data = collections.defaultdict(dict)
+    if options.architectures is None:
+        release_dist = options.distribution
+        if release_dist in ('unstable', 'sid', 'experimental', 'rc-buggy'):
+            release_dist = 'testing'
+        url = '{mirror}/dists/{dist}/Release'.format(
+            mirror=options.mirror,
+            dist=release_dist
+        )
+        log_download(url)
+        child = ipc.Popen('wget -O- -q {}'.format(url), shell=True, stdout=ipc.PIPE)
+        try:
+            for para in apt_pkg.TagFile(child.stdout):
+                options.architectures = para['Architectures'].split()
+        finally:
+            if child.wait() != 0:
+                raise IOError
     for architecture in options.architectures:
         for section in 'main', 'contrib', 'non-free':
             url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
@@ -110,9 +125,9 @@ def main():
         metavar='<dist>',
         help='check this distribution (default: {dist})'.format(dist=default_distribution)
     )
-    parser.add_argument('--architectures', nargs='+', default=default_architectures,
+    parser.add_argument('--architectures', nargs='+',
         metavar='<arch>',
-        help='check these architectures (default: {archs})'.format(archs=' '.join(default_architectures))
+        help='check these architectures (default: all release architectures)'
     )
     parser.add_argument('--packages', nargs='+', default=Universum(),
         metavar='<package>',
