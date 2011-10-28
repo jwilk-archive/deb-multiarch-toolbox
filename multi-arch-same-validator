@@ -102,10 +102,22 @@ class Universum(object):
 def main():
     setup_proxies()
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mirror', default=default_mirror)
-    parser.add_argument('--distribution', default=default_distribution)
-    parser.add_argument('--architectures', nargs='+', default=default_architectures)
-    parser.add_argument('--packages', nargs='+', default=Universum(), help='check only these packages (default: check all)')
+    parser.add_argument('--mirror', default=default_mirror,
+        metavar='<mirror>',
+        help='use this mirror (default: {mirror})'.format(mirror=default_mirror)
+    )
+    parser.add_argument('--distribution', default=default_distribution,
+        metavar='<dist>',
+        help='check this distribution (default: {dist})'.format(dist=default_distribution)
+    )
+    parser.add_argument('--architectures', nargs='+', default=default_architectures,
+        metavar='<arch>',
+        help='check these architectures (default: {archs})'.format(archs=' '.join(default_architectures))
+    )
+    parser.add_argument('--packages', nargs='+', default=Universum(),
+        metavar='<package>',
+        help='check only these packages (default: check all)'
+    )
     options = parser.parse_args()
     if isinstance(options.packages, list):
         options.packages = frozenset(options.packages)
