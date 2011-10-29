@@ -16,6 +16,7 @@ import apt_pkg
 
 default_mirror = 'http://ftp.debian.org/debian'
 default_distribution = 'unstable'
+log_file = None
 
 def setup_proxies():
     apt_pkg.init_config()
@@ -25,19 +26,23 @@ def setup_proxies():
 def setup_locale():
     os.environ['LC_ALL'] = 'C'
 
+def setup_log_file(file):
+    global log_file
+    log_file = file
+
 def log_download(url):
-    print('D: {url}'.format(url=url), file=sys.stderr)
+    print('D: {url}'.format(url=url), file=log_file)
 
 def log_action(package, version, action):
     print(
         'I: {pkg} {ver} => {action}'.format(pkg=package, ver=version, action=action),
-        file=sys.stderr
+        file=log_file
     )
 
 def log_error(package, version, message):
     print(
         'E: {pkg} {ver} => {message}'.format(pkg=package, ver=version, message=message),
-        file=sys.stderr
+        file=log_file
     )
 
 class DownloadError(IOError):
@@ -170,7 +175,12 @@ def main():
     parser.add_argument('--compact', action='store_true',
         help='don\'t print MD5 sums if they are all different'
     )
+    parser.add_argument('--log-file', type=argparse.FileType('a'), default=sys.stderr,
+        metavar='<file>',
+        help='log progress into this file (default: stderr)'
+    )
     options = parser.parse_args()
+    setup_log_file(options.log_file)
     if isinstance(options.packages, list):
         options.packages = frozenset(options.packages)
     do_qa(options)
