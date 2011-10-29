@@ -37,6 +37,24 @@ def log_error(package, version, message):
         file=sys.stderr
     )
 
+class download:
+
+    def __init__(self, url, pipe=None):
+        self._url = url
+        self._pipe = pipe
+
+    def __enter__(self):
+        log_download(self._url)
+        commandline = 'wget -O- -q {url}'.format(url=self._url)
+        if self._pipe is not None:
+            commandline += ' | ' + self._pipe
+        self._child = ipc.Popen(commandline, shell=True, stdout=ipc.PIPE)
+        return self._child.stdout
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._child.wait() != 0:
+            raise IOError
+
 def do_qa(options):
     data = collections.defaultdict(dict)
     if options.architectures is None:
@@ -47,14 +65,9 @@ def do_qa(options):
             mirror=options.mirror,
             dist=release_dist
         )
-        log_download(url)
-        child = ipc.Popen('wget -O- -q {}'.format(url), shell=True, stdout=ipc.PIPE)
-        try:
-            for para in apt_pkg.TagFile(child.stdout):
+        with download(url) as release_tags:
+            for para in apt_pkg.TagFile(release_tags):
                 options.architectures = para['Architectures'].split()
-        finally:
-            if child.wait() != 0:
-                raise IOError
     for architecture in options.architectures:
         for section in 'main', 'contrib', 'non-free':
             url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
@@ -63,18 +76,15 @@ def do_qa(options):
                 section=section,
                 arch=architecture
             )
-            log_download(url)
-            child = ipc.Popen('wget -O- -q {} | gzip -dc'.format(url), shell=True, stdout=ipc.PIPE)
-            for pkgdata in apt_pkg.TagFile(child.stdout):
-                if pkgdata.get('Multi-Arch', '') == 'same':
-                    pkgname = pkgdata['Package']
-                    if pkgname not in options.packages:
-                        continue
-                    pkgversion = pkgdata['Version']
-                    url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
-                    data[pkgname, pkgversion][architecture] = url
-            if child.wait() != 0:
-                raise IOError
+            with download(url, pipe='gzip -dc') as package_tags:
+                for pkgdata in apt_pkg.TagFile(package_tags):
+                    if pkgdata.get('Multi-Arch', '') == 'same':
+                        pkgname = pkgdata['Package']
+                        if pkgname not in options.packages:
+                            continue
+                        pkgversion = pkgdata['Version']
+                        url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
+                        data[pkgname, pkgversion][architecture] = url
     last = None
     for (pkgname, pkgversion), urls in data.items():
         if len(urls) <= 1:
@@ -85,13 +95,13 @@ def do_qa(options):
             lambda: collections.defaultdict(set)
         )
         for architecture, url in urls.items():
-            log_download(url)
-            child = ipc.Popen('wget -O- -q {} | dpkg-deb -I /dev/stdin md5sums 2>/dev/null'.format(url), shell=True, stdout=ipc.PIPE)
-            for line in child.stdout:
-                md5sum = line[:32]
-                filename = line[34:-1]
-                pkgdata[filename][md5sum].add(architecture)
-            if child.wait() != 0:
+            try:
+                with download(url, pipe='dpkg-deb -I /dev/stdin md5sums 2>/dev/null') as md5sums_file:
+                    for line in md5sums_file:
+                        md5sum = line[:32]
+                        filename = line[34:-1]
+                        pkgdata[filename][md5sum].add(architecture)
+            except IOError:
                 log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
                 continue
         for filename, md5sums in pkgdata.items():
