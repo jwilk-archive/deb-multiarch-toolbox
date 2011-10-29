@@ -33,7 +33,6 @@ def log_action(package, version, action):
         'I: {pkg} {ver} => {action}'.format(pkg=package, ver=version, action=action),
         file=sys.stderr
     )
-    sys.stderr.flush()
 
 def log_error(package, version, message):
     print(
