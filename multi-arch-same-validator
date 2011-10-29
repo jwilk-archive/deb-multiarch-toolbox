@@ -103,6 +103,9 @@ def do_qa(options):
                 print('[{name} {ver}]'.format(name=pkgname, ver=pkgversion))
                 last = (pkgname, pkgversion)
             print(filename.decode('UTF-8', 'replace'))
+            if options.compact:
+                if all(len(x) == 1 for x in md5sums.values()):
+                    continue
             for md5sum, architectures in sorted(md5sums.items()):
                 print('  {md5sum} {arch}'.format(
                     md5sum=md5sum.decode('ASCII'),
@@ -132,6 +135,9 @@ def main():
     parser.add_argument('--packages', nargs='+', default=Universum(),
         metavar='<package>',
         help='check only these packages (default: check all)'
+    )
+    parser.add_argument('--compact', action='store_true',
+        help='don\'t print MD5 sums if they are all different'
     )
     options = parser.parse_args()
     if isinstance(options.packages, list):
