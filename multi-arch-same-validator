@@ -7,6 +7,7 @@ Check MD5 sums for 'Multi-Arch: same' packages.
 import argparse
 import collections
 import os
+import pipes
 import re
 import sys
 import subprocess as ipc
@@ -45,9 +46,16 @@ class download:
 
     def __enter__(self):
         log_download(self._url)
-        commandline = 'wget -O- -q {url}'.format(url=self._url)
-        if self._pipe is not None:
-            commandline += ' | ' + self._pipe
+        quoted_url = pipes.quote(self._url)
+        if self._url.startswith(('/', '.')):
+            if self._pipe is not None:
+                commandline = '< {url} {pipe}'.format(url=quoted_url, pipe=self._pipe)
+            else:
+                commandline = 'cat {url}'.format(url=quoted_url)
+        else:
+            commandline = 'wget -O- -q {url}'.format(url=quoted_url)
+            if self._pipe is not None:
+                commandline += ' | ' + self._pipe
         self._child = ipc.Popen(commandline, shell=True, stdout=ipc.PIPE)
         return self._child.stdout
 
