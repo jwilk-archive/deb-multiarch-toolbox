@@ -129,7 +129,7 @@ class Universum(object):
 
 def main():
     setup_proxies()
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mirror', default=default_mirror,
         metavar='<mirror>',
         help='use this mirror (default: {mirror})'.format(mirror=default_mirror)
