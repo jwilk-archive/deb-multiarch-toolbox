@@ -22,6 +22,9 @@ def setup_proxies():
     os.environ['http_proxy'] = apt_pkg.config.get('Acquire::http::Proxy', '')
     os.environ['ftp_proxy'] = apt_pkg.config.get('Acquire::ftp::Proxy', '')
 
+def setup_locale():
+    os.environ['LC_ALL'] = 'C'
+
 def log_download(url):
     print('D: {url}'.format(url=url), file=sys.stderr)
 
@@ -147,6 +150,7 @@ class Universum(object):
 
 def main():
     setup_proxies()
+    setup_locale()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mirror', default=default_mirror,
         metavar='<mirror>',
