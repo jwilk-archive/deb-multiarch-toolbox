@@ -38,6 +38,9 @@ def log_error(package, version, message):
         file=sys.stderr
     )
 
+class DownloadError(IOError):
+    pass
+
 class download:
 
     def __init__(self, url, pipe=None):
@@ -56,12 +59,16 @@ class download:
             commandline = 'wget -O- -q {url}'.format(url=quoted_url)
             if self._pipe is not None:
                 commandline += ' | ' + self._pipe
-        self._child = ipc.Popen(commandline, shell=True, stdout=ipc.PIPE)
+        self._child = ipc.Popen(commandline, shell=True,
+            stdout=ipc.PIPE, stderr=ipc.PIPE
+        )
         return self._child.stdout
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        stderr = self._child.stderr.read()
         if self._child.wait() != 0:
-            raise IOError
+            stderr = stderr.decode('ASCII', 'replace').strip()
+            raise DownloadError(stderr)
 
 def do_qa(options):
     data = collections.defaultdict(dict)
@@ -104,14 +111,17 @@ def do_qa(options):
         )
         for architecture, url in urls.items():
             try:
-                with download(url, pipe='dpkg-deb -I /dev/stdin md5sums 2>/dev/null') as md5sums_file:
+                with download(url, pipe='dpkg-deb -I /dev/stdin md5sums') as md5sums_file:
                     for line in md5sums_file:
                         md5sum = line[:32]
                         filename = line[34:-1]
                         pkgdata[filename][md5sum].add(architecture)
-            except IOError:
-                log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
-                continue
+            except DownloadError as exc:
+                if 'contains no control component `md5sums\'' in str(exc):
+                    log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
+                    continue
+                else:
+                    raise
         for filename, md5sums in pkgdata.items():
             if len(md5sums) <= 1:
                 continue
