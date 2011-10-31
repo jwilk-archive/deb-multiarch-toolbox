@@ -112,7 +112,7 @@ def do_qa(options):
         if len(urls) <= 1:
             log_action(pkgname, pkgversion, 'skip')
             continue
-        log_action(pkgname, pkgversion, 'download ({})'.format(' '.join(urls.keys())))
+        log_action(pkgname, pkgversion, 'download ({archs})'.format(archs=' '.join(urls.keys())))
         pkgdata = collections.defaultdict(
             lambda: collections.defaultdict(set)
         )
