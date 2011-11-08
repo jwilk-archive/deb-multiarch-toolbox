@@ -11,6 +11,7 @@ Check MD5 sums for 'Multi-Arch: same' packages.
 
 import argparse
 import collections
+import dbm
 import os
 import pipes
 import re
@@ -53,6 +54,17 @@ def log_error(package, version, message):
 class DownloadError(IOError):
     pass
 
+class DummyCache(object):
+
+    def __getitem__(self, key):
+        raise KeyError
+
+    def __setitem__(self, key, value):
+        pass
+
+    def close(self):
+        pass
+
 class download:
 
     def __init__(self, url, pipe=None):
@@ -82,7 +94,20 @@ class download:
             stderr = stderr.decode('ASCII', 'replace').strip()
             raise DownloadError(stderr)
 
+def parse_md5sums_line(pkgdata, line, architecture):
+    md5sum = line[:32]
+    filename = line[34:-1]
+    pkgdata[filename][md5sum].add(architecture)
+
 def do_qa(options):
+    if options.cache:
+        try:
+            os.makedirs(os.path.dirname(options.cache))
+        except OSError:
+            pass
+        cache = dbm.open(options.cache, 'c')
+    else:
+        cache = DummyCache()
     data = collections.defaultdict(dict)
     if options.architectures is None:
         release_dist = options.distribution
@@ -122,18 +147,25 @@ def do_qa(options):
             lambda: collections.defaultdict(set)
         )
         for architecture, url in urls.items():
+            cache_key = '{name}_{version}_{arch}'.format(name=pkgname, version=pkgversion, arch=architecture)
             try:
-                with download(url, pipe='dpkg-deb -I /dev/stdin md5sums') as md5sums_file:
-                    for line in md5sums_file:
-                        md5sum = line[:32]
-                        filename = line[34:-1]
-                        pkgdata[filename][md5sum].add(architecture)
-            except DownloadError as exc:
-                if 'contains no control component `md5sums\'' in str(exc):
-                    log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
-                    continue
-                else:
-                    raise
+                cache_item = cache[cache_key]
+                for line in cache_item.splitlines(True):
+                    parse_md5sums_line(pkgdata, line, architecture)
+            except KeyError:
+                try:
+                    cache_item = []
+                    with download(url, pipe='dpkg-deb -I /dev/stdin md5sums') as md5sums_file:
+                        for line in md5sums_file:
+                            parse_md5sums_line(pkgdata, line, architecture)
+                            cache_item += [line]
+                    cache[cache_key] = b''.join(cache_item)
+                except DownloadError as exc:
+                    if 'contains no control component `md5sums\'' in str(exc):
+                        log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
+                        continue
+                    else:
+                        raise
         for filename, md5sums in pkgdata.items():
             if len(md5sums) <= 1:
                 continue
@@ -151,6 +183,7 @@ def do_qa(options):
                     md5sum=md5sum.decode('ASCII'),
                     arch=' '.join(architectures)
                 ))
+    cache.close()
 
 class Universum(object):
 
@@ -180,6 +213,10 @@ def main():
     parser.add_argument('--compact', action='store_true',
         help='don\'t print MD5 sums if they are all different'
     )
+    parser.add_argument('--cache', nargs='?',
+        metavar='<file>', default=False,
+        help='use cache file'
+    )
     parser.add_argument('--log-file', type=argparse.FileType('a'), default=sys.stderr,
         metavar='<file>',
         help='log progress into this file (default: stderr)'
@@ -188,6 +225,11 @@ def main():
     setup_log_file(options.log_file)
     if isinstance(options.packages, list):
         options.packages = frozenset(options.packages)
+    if options.cache is None:
+        options.cache = os.path.join((
+            os.getenv('XDG_CACHE_HOME') or
+            os.path.join(os.path.expanduser('~'), '.cache')
+        ), 'debian', 'multi-arch-same-validator')
     do_qa(options)
 
 if __name__ == '__main__':
