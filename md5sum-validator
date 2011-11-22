@@ -13,46 +13,12 @@ import argparse
 import collections
 import dbm
 import os
-import pipes
 import re
 import sys
-import subprocess as ipc
 
 import apt_pkg
 
-default_mirror = 'http://ftp.debian.org/debian'
-default_distribution = 'unstable'
-log_file = None
-
-def setup_proxies():
-    apt_pkg.init_config()
-    os.environ['http_proxy'] = apt_pkg.config.get('Acquire::http::Proxy', '')
-    os.environ['ftp_proxy'] = apt_pkg.config.get('Acquire::ftp::Proxy', '')
-
-def setup_locale():
-    os.environ['LC_ALL'] = 'C'
-
-def setup_log_file(file):
-    global log_file
-    log_file = file
-
-def log_download(url):
-    print('D: {url}'.format(url=url), file=log_file)
-
-def log_action(package, version, action):
-    print(
-        'I: {pkg} {ver} => {action}'.format(pkg=package, ver=version, action=action),
-        file=log_file
-    )
-
-def log_error(package, version, message):
-    print(
-        'E: {pkg} {ver} => {message}'.format(pkg=package, ver=version, message=message),
-        file=log_file
-    )
-
-class DownloadError(IOError):
-    pass
+import misc
 
 class DummyCache(object):
 
@@ -64,35 +30,6 @@ class DummyCache(object):
 
     def close(self):
         pass
-
-class download:
-
-    def __init__(self, url, pipe=None):
-        self._url = url
-        self._pipe = pipe
-
-    def __enter__(self):
-        log_download(self._url)
-        quoted_url = pipes.quote(self._url)
-        if self._url.startswith(('/', '.')):
-            if self._pipe is not None:
-                commandline = '< {url} {pipe}'.format(url=quoted_url, pipe=self._pipe)
-            else:
-                commandline = 'cat {url}'.format(url=quoted_url)
-        else:
-            commandline = 'wget -O- -q {url}'.format(url=quoted_url)
-            if self._pipe is not None:
-                commandline += ' | ' + self._pipe
-        self._child = ipc.Popen(commandline, shell=True,
-            stdout=ipc.PIPE, stderr=ipc.PIPE
-        )
-        return self._child.stdout
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        stderr = self._child.stderr.read()
-        if self._child.wait() != 0:
-            stderr = stderr.decode('ASCII', 'replace').strip()
-            raise DownloadError(stderr)
 
 def parse_md5sums_line(pkgdata, line, architecture):
     md5sum = line[:32]
@@ -117,7 +54,7 @@ def do_qa(options):
             mirror=options.mirror,
             dist=release_dist
         )
-        with download(url) as release_tags:
+        with misc.download(url) as release_tags:
             for para in apt_pkg.TagFile(release_tags):
                 options.architectures = para['Architectures'].split()
     for architecture in options.architectures:
@@ -128,7 +65,7 @@ def do_qa(options):
                 section=section,
                 arch=architecture
             )
-            with download(url, pipe='gzip -dc') as package_tags:
+            with misc.download(url, pipe='gzip -dc') as package_tags:
                 for pkgdata in apt_pkg.TagFile(package_tags):
                     if pkgdata.get('Multi-Arch', '') == 'same':
                         pkgname = pkgdata['Package']
@@ -140,9 +77,9 @@ def do_qa(options):
     last = None
     for (pkgname, pkgversion), urls in data.items():
         if len(urls) <= 1:
-            log_action(pkgname, pkgversion, 'skip')
+            misc.log_action(pkgname, pkgversion, 'skip')
             continue
-        log_action(pkgname, pkgversion, 'download ({archs})'.format(archs=' '.join(urls.keys())))
+        misc.log_action(pkgname, pkgversion, 'download ({archs})'.format(archs=' '.join(urls.keys())))
         pkgdata = collections.defaultdict(
             lambda: collections.defaultdict(set)
         )
@@ -155,14 +92,14 @@ def do_qa(options):
             except KeyError:
                 try:
                     cache_item = []
-                    with download(url, pipe='dpkg-deb -I /dev/stdin md5sums') as md5sums_file:
+                    with misc.download(url, pipe='dpkg-deb -I /dev/stdin md5sums') as md5sums_file:
                         for line in md5sums_file:
                             parse_md5sums_line(pkgdata, line, architecture)
                             cache_item += [line]
                     cache[cache_key] = b''.join(cache_item)
-                except DownloadError as exc:
+                except misc.DownloadError as exc:
                     if 'contains no control component `md5sums\'' in str(exc):
-                        log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
+                        misc.log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
                         continue
                     else:
                         raise
@@ -191,16 +128,16 @@ class Universum(object):
         return True
 
 def main():
-    setup_proxies()
-    setup_locale()
+    misc.setup_proxies()
+    misc.setup_locale()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mirror', default=default_mirror,
+    parser.add_argument('--mirror', default=misc.default_mirror,
         metavar='<mirror>',
-        help='use this mirror (default: {mirror})'.format(mirror=default_mirror)
+        help='use this mirror (default: {mirror})'.format(mirror=misc.default_mirror)
     )
-    parser.add_argument('--distribution', default=default_distribution,
+    parser.add_argument('--distribution', default=misc.default_distribution,
         metavar='<dist>',
-        help='check this distribution (default: {dist})'.format(dist=default_distribution)
+        help='check this distribution (default: {dist})'.format(dist=misc.default_distribution)
     )
     parser.add_argument('--architectures', nargs='+',
         metavar='<arch>',
@@ -222,7 +159,7 @@ def main():
         help='log progress into this file (default: stderr)'
     )
     options = parser.parse_args()
-    setup_log_file(options.log_file)
+    misc.setup_log_file(options.log_file)
     if isinstance(options.packages, list):
         options.packages = frozenset(options.packages)
     if options.cache is None:
