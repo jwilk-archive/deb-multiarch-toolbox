@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+
+# Copyright © 2011 Jakub Wilk <jwilk@debian.org>
+
+# Redistribution and use in source and compiled forms, with or without
+# modification, are permitted under any circumstances. No warranty.
+
+'''
+Looks for 'Multi-Arch: no' package with 'Multi-Arch: same'
+reverse-dependencies.
+'''
+
+import argparse
+import os
+import sys
+
+import apt_pkg
+
+import misc
+
+default_architecture = 'i386'
+
+class Package(object):
+
+    def __init__(self, pkgdata):
+        self.name = pkgdata['Package']
+        self.multiarch = pkgdata.get('Multi-Arch')
+        self.depends = apt_pkg.parse_depends(pkgdata.get('Depends', ''))
+        self.broken = set()
+
+    def brokenness(self):
+        return len(self.broken), self.name
+
+    def validate(self, universe):
+        if self.multiarch != 'same':
+            return
+        for group in self.depends:
+            dependency = None
+            for dep_name, _, _ in group:
+                try:
+                    dependency = universe[dep_name]
+                except LookupError:
+                    continue
+                if dependency.multiarch is not None:
+                    group = []
+                    break
+            if group:
+                for dep_name, _, _ in group:
+                    try:
+                        dependency = universe[dep_name]
+                    except LookupError:
+                        continue
+                    dependency.broken.add(self.name)
+
+def do_qa(options):
+    for section in 'main', 'contrib', 'non-free':
+        url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
+            mirror=options.mirror,
+            dist=options.distribution,
+            section=section,
+            arch=options.architecture
+        )
+        universe = {}
+        with misc.download(url, pipe='gzip -dc') as package_tags:
+            for pkgdata in apt_pkg.TagFile(package_tags):
+                package = Package(pkgdata)
+                universe[package.name] = package
+        for package in universe.values():
+            package.validate(universe)
+        for package in sorted(universe.values(), key=Package.brokenness, reverse=True):
+            if package.broken:
+                print('Package: {pkg}'.format(pkg=package.name))
+                print('Reverse-Depends: {dep}'.format(dep=', '.join(package.broken)))
+                print()
+
+def main():
+    misc.setup_proxies()
+    misc.setup_locale()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--mirror', default=misc.default_mirror,
+        metavar='<mirror>',
+        help='use this mirror (default: {mirror})'.format(mirror=misc.default_mirror)
+    )
+    parser.add_argument('--distribution', default=misc.default_distribution,
+        metavar='<dist>',
+        help='check this distribution (default: {dist})'.format(dist=misc.default_distribution)
+    )
+    parser.add_argument('--architecture', default=default_architecture,
+        metavar='<arch>',
+        help='check this architectures (default: {arch})'.format(arch=default_architecture)
+    )
+    parser.add_argument('--log-file', type=argparse.FileType('a'), default=sys.stderr,
+        metavar='<file>',
+        help='log progress into this file (default: stderr)'
+    )
+    options = parser.parse_args()
+    misc.setup_log_file(options.log_file)
+    do_qa(options)
+
+if __name__ == '__main__':
+    main()
+
+# vim:ts=4 sw=4 et
