@@ -75,7 +75,7 @@ def do_qa(options):
                         url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
                         data[pkgname, pkgversion][architecture] = url
     last = None
-    for (pkgname, pkgversion), urls in data.items():
+    for (pkgname, pkgversion), urls in sorted(data.items()):
         if len(urls) <= 1:
             misc.log_action(pkgname, pkgversion, 'skip')
             continue
@@ -103,7 +103,7 @@ def do_qa(options):
                         continue
                     else:
                         raise
-        for filename, md5sums in pkgdata.items():
+        for filename, md5sums in sorted(pkgdata.items()):
             if len(md5sums) <= 1:
                 continue
             if last != (pkgname, pkgversion):
