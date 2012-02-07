@@ -24,6 +24,10 @@ class Package(object):
 
     def __init__(self, pkgdata):
         self.name = pkgdata['Package']
+        try:
+            self.source = pkgdata['Source'].split()[0]
+        except LookupError:
+            self.source = self.name
         self.multiarch = pkgdata.get('Multi-Arch')
         self.depends = apt_pkg.parse_depends(pkgdata.get('Depends', ''))
         self.broken = set()
@@ -70,6 +74,7 @@ def do_qa(options):
         for package in sorted(universe.values(), key=Package.brokenness, reverse=True):
             if package.broken:
                 print('Package: {pkg}'.format(pkg=package.name))
+                print('Source: {pkg}'.format(pkg=package.source))
                 print('Reverse-Depends: {dep}'.format(dep=', '.join(package.broken)))
                 print()
 
