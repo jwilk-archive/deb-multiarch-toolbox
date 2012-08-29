@@ -185,7 +185,7 @@ if __name__ == '__main__':
     except VersionError as exc:
         parser.error(exc)
     except UserError as exc:
-        print('Error: {exc}'.format(exc=exc), file=sys.stderr)
+        print('{prog}: error: {exc}'.format(prog=parser.prog, exc=exc), file=sys.stderr)
         sys.exit(1)
 
 # vim:ts=4 sw=4 et
