@@ -125,6 +125,8 @@ def main(options):
     (archdiff, stderr) = child.communicate()
     child = None
     archdiff = subst_archdiff_junk(b'', archdiff)
+    if archdiff == b'':
+        raise UserError('no differences')
     ungzipped = [
         s.decode('ASCII')
         for s in extract_binary_filenames_from_archdiff(archdiff)
