@@ -6,6 +6,7 @@
 # modification, are permitted under any circumstances. No warranty.
 
 import argparse
+import collections
 import os
 import pwd
 import re
@@ -95,7 +96,7 @@ def main(options):
     tmpdir = tempfile.mkdtemp(prefix='report-multiarch-bug.')
     progress = apt.progress.text.AcquireProgress()
     fetcher = apt_pkg.Acquire(progress)
-    files = {}
+    files = collections.OrderedDict()
     for uri in uris:
         filename = os.path.basename(uri)
         files[filename] = apt_pkg.AcquireFile(
