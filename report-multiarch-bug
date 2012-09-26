@@ -87,6 +87,7 @@ def regulate_symlinks(root='.'):
             except OSError as exc:
                 if exc.errno == errno.EINVAL:
                     continue
+                raise
             os.remove(filename)
             with open(filename, 'wt', encoding=fsencoding) as file:
                 file.write(link)
