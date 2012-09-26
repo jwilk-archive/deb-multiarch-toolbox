@@ -7,6 +7,7 @@
 
 import argparse
 import collections
+import errno
 import os
 import pwd
 import re
@@ -76,6 +77,20 @@ class VersionError(UserError):
 class NotMultiArchSame(UserError):
     pass
 
+def regulate_symlinks(root='.'):
+    fsencoding = sys.getfilesystemencoding()
+    for root, dirnames, filenames in os.walk(root):
+        for filename in filenames + dirnames:
+            filename = os.path.join(root, filename)
+            try:
+                link = os.readlink(filename)
+            except OSError as exc:
+                if exc.errno == errno.EINVAL:
+                    continue
+            os.remove(filename)
+            with open(filename, 'wt', encoding=fsencoding) as file:
+                file.write(link)
+
 def main(options):
     cache = apt.Cache()
     packages = cache[options.package].versions
@@ -121,6 +136,7 @@ def main(options):
             strip_deb_suffix(filename)
         ]
         ipc.check_call(commandline)
+    regulate_symlinks()
     diff_commandline = ['diff', '-ur'] + [strip_deb_suffix(f) for f in files.keys()]
     child = ipc.Popen(diff_commandline, stdout=ipc.PIPE)
     (archdiff, stderr) = child.communicate()
