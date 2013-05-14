@@ -89,7 +89,7 @@ def regulate_symlinks(root='.'):
                     continue
                 raise
             os.remove(filename)
-            with open(filename, 'wt', encoding=fsencoding) as file:
+            with open(filename + '#symlink', 'wt', encoding=fsencoding) as file:
                 file.write(link)
 
 def main(options):
