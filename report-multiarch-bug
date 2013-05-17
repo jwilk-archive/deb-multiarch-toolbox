@@ -167,7 +167,13 @@ def main(options):
         for s in extract_binary_filenames_from_archdiff(archdiff)
     ]
     archdiff_affected = [ungzipped.get(file, file) for file in archdiff_affected]
-    archdiff_filename = '{0}.archdiff'.format(os.path.commonprefix(files.keys())[:-1])
+    archdiff_filename = (
+        strip_deb_suffix(
+            subst_architecture('',
+                next(iter(files.keys()))
+        )).rstrip('_') +
+        '.archdiff'
+    )
     with open(archdiff_filename, 'wb') as file:
         file.write(archdiff)
         del archdiff
