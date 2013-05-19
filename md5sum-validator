@@ -101,7 +101,7 @@ def do_qa(options):
                             cache_item += [line]
                     cache[cache_key] = b''.join(cache_item)
                 except misc.DownloadError as exc:
-                    if 'contains no control component `md5sums\'' in str(exc):
+                    if 'contains no control component' in str(exc):
                         misc.log_error(pkgname, pkgversion, 'missing md5sums for {arch}'.format(arch=architecture))
                         continue
                     else:
