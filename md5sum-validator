@@ -11,6 +11,7 @@ Check MD5 sums for 'Multi-Arch: same' packages.
 
 import argparse
 import collections
+import io
 import dbm
 import os
 import re
@@ -55,8 +56,9 @@ def do_qa(options):
             dist=release_dist
         )
         with misc.download(url) as release_tags:
-            for para in apt_pkg.TagFile(release_tags):
-                options.architectures = para['Architectures'].split()
+            with io.TextIOWrapper(release_tags, encoding='UTF-8') as release_tags:
+                for para in apt_pkg.TagFile(release_tags):
+                    options.architectures = para['Architectures'].split()
     for architecture in options.architectures:
         for section in 'main', 'contrib', 'non-free':
             url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
@@ -66,14 +68,15 @@ def do_qa(options):
                 arch=architecture
             )
             with misc.download(url, pipe='gzip -dc') as package_tags:
-                for pkgdata in apt_pkg.TagFile(package_tags):
-                    if pkgdata.get('Multi-Arch', '') == 'same':
-                        pkgname = pkgdata['Package']
-                        if pkgname not in options.packages:
-                            continue
-                        pkgversion = pkgdata['Version']
-                        url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
-                        data[pkgname, pkgversion][architecture] = url
+                with io.TextIOWrapper(package_tags, encoding='UTF-8') as package_tags:
+                    for pkgdata in apt_pkg.TagFile(package_tags):
+                        if pkgdata.get('Multi-Arch', '') == 'same':
+                            pkgname = pkgdata['Package']
+                            if pkgname not in options.packages:
+                                continue
+                            pkgversion = pkgdata['Version']
+                            url = '{mirror}/{path}'.format(mirror=options.mirror, path=pkgdata['Filename'])
+                            data[pkgname, pkgversion][architecture] = url
     last = None
     for (pkgname, pkgversion), urls in sorted(data.items()):
         if len(urls) <= 1:
