@@ -59,6 +59,12 @@ def do_qa(options):
             with io.TextIOWrapper(release_tags, encoding='UTF-8') as release_tags:
                 for para in apt_pkg.TagFile(release_tags):
                     options.architectures = para['Architectures'].split()
+    if options.skip_architectures is not None:
+        options.architectures = [
+            arch
+            for arch in options.architectures
+            if arch not in options.skip_architectures
+        ]
     for architecture in options.architectures:
         for section in 'main', 'contrib', 'non-free':
             url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
@@ -145,6 +151,10 @@ def main():
     parser.add_argument('--architectures', nargs='+',
         metavar='<arch>',
         help='check these architectures (default: all release architectures)'
+    )
+    parser.add_argument('--skip-architectures', nargs='+',
+        metavar='<arch>',
+        help='don\'t check these architectures'
     )
     parser.add_argument('--packages', nargs='+', default=Universum(),
         metavar='<package>',
