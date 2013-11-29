@@ -130,7 +130,7 @@ def main(options):
             raise RuntimeError('fetching file failed ({0})'.format(filename))
         commandline = ['dpkg-deb', '-I', filename, 'control']
         control = ipc.check_output(commandline)
-        if b'\nMulti-Arch: same\n' not in control:
+        if b'\nMulti-Arch: same\n' not in control and not options.force:
             raise NotMultiArchSame('{file} is not "Multi-Arch: same"'.format(file=filename))
         commandline = ['dpkg-deb', '-x',
             filename,
@@ -201,6 +201,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mutt', action='store_true')
     parser.add_argument('-a', '--architectures', metavar='<arch>', nargs=2, default=['i386', 'amd64'])
+    parser.add_argument('-f', '--force', action='store_true')
     parser.add_argument('package', metavar='<package>')
     parser.add_argument('version', metavar='<version>', nargs='?')
     options = parser.parse_args()
