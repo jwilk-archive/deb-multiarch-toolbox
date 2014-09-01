@@ -104,7 +104,7 @@ def main(options):
         raise VersionError('select a version: {0}'.format(
             ', '.join(pkg.version for pkg in packages))
         )
-    [uri] = package.uris
+    uri = package.uris[0]
     uris = [
         subst_architecture(arch, uri)
         for arch in options.architectures
