@@ -1,7 +1,11 @@
-# Copyright © 2011 Jakub Wilk <jwilk@debian.org>
+# encoding=UTF-8
+
+# Copyright © 2011, 2014 Jakub Wilk <jwilk@debian.org>
 
 # Redistribution and use in source and compiled forms, with or without
 # modification, are permitted under any circumstances. No warranty.
+
+from __future__ import print_function
 
 import os
 import pipes
