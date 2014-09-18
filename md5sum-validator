@@ -44,6 +44,9 @@ class DummyCache(object):
     def __setitem__(self, key, value):
         pass
 
+    def keys(self):
+        return ()
+
     def close(self):
         pass
 
@@ -53,6 +56,7 @@ def parse_md5sums_line(pkgdata, line, architecture):
     pkgdata[filename][md5sum].add(architecture)
 
 def do_qa(options):
+    seen_cache_keys = set()
     if options.cache:
         try:
             os.makedirs(os.path.dirname(options.cache))
@@ -109,6 +113,7 @@ def do_qa(options):
         )
         for architecture, url in urls.items():
             cache_key = '{name}_{version}_{arch}'.format(name=pkgname, version=pkgversion, arch=architecture)
+            cache_key = cache_key.encode('ASCII')
             try:
                 cache_item = cache[cache_key]
                 for line in cache_item.splitlines(True):
@@ -127,6 +132,7 @@ def do_qa(options):
                         continue
                     else:
                         raise
+            seen_cache_keys.add(cache_key)
         for filename, md5sums in sorted(pkgdata.items()):
             if len(md5sums) <= 1:
                 continue
@@ -144,6 +150,9 @@ def do_qa(options):
                     md5sum=md5sum.decode('ASCII'),
                     arch=' '.join(sorted(architectures))
                 ))
+    if options.prune_cache:
+        for key in set(cache.keys()) - seen_cache_keys:
+            del cache[key]
     cache.close()
 
 class Universum(object):
@@ -181,6 +190,9 @@ def main():
     parser.add_argument('--cache', nargs='?',
         metavar='<file>', default=False,
         help='use cache file'
+    )
+    parser.add_argument('--prune-cache', action='store_true',
+        help='remove unused items from cache'
     )
     parser.add_argument('--log-file', type=argparse.FileType('a'), default=sys.stderr,
         metavar='<file>',
