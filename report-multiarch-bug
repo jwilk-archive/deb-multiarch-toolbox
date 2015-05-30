@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright © 2012, 2013 Jakub Wilk <jwilk@debian.org>
+# Copyright © 2012-2015 Jakub Wilk <jwilk@debian.org>
 
 # Redistribution and use in source and compiled forms, with or without
 # modification, are permitted under any circumstances. No warranty.
@@ -176,7 +176,6 @@ def main(options):
     )
     with open(archdiff_filename, 'wb') as file:
         file.write(archdiff)
-        del archdiff
     mail = template.render(
         name=get_full_name(),
         email=get_email(),
@@ -194,6 +193,8 @@ def main(options):
         ipc.check_call(commandline)
     else:
         print(mail)
+        sys.stdout.flush()
+        sys.stdout.buffer.write(archdiff)
     os.chdir('/')
     shutil.rmtree(tmpdir)
 
