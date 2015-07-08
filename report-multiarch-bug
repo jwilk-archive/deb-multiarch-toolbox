@@ -104,6 +104,8 @@ def main(options):
         raise VersionError('select a version: {0}'.format(
             ', '.join(pkg.version for pkg in packages))
         )
+    if package.architecture == 'all':
+        raise NotMultiArchSame('{pkg} is "Architecture: all"'.format(pkg=options.package))
     uri = package.uris[0]
     uris = [
         subst_architecture(arch, uri)
