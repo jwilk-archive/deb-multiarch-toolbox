@@ -77,4 +77,4 @@ class download:
             stderr = stderr.decode('ASCII', 'replace').strip()
             raise DownloadError(stderr)
 
-# vim:ts=4 sw=4 et
+# vim:ts=4 sts=4 sw=4 et
