@@ -94,7 +94,10 @@ def regulate_symlinks(root='.'):
 
 def main(options):
     cache = apt.Cache()
-    packages = cache[options.package].versions
+    try:
+        packages = cache[options.package].versions
+    except KeyError as exc:
+        raise UserError(*exc.args)
     try:
         [package] = [
             pkg for pkg in packages
