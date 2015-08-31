@@ -184,7 +184,7 @@ def main(options):
     mail = template.render(
         name=get_full_name(),
         email=get_email(),
-        package=options.package,
+        package=options.package.split(':')[0],
         version=package.version,
         architectures=options.architectures,
         plural=plural,
