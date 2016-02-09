@@ -192,6 +192,12 @@ def main(options):
         ungzipped=ungzipped,
     )
     if options.mutt:
+        if options.compress_diff == 'gzip':
+            ipc.check_call(['gzip', '-9n', archdiff_filename])
+            archdiff_filename += '.gz'
+        elif options.compress_diff == 'xz':
+            ipc.check_call(['xz', archdiff_filename])
+            archdiff_filename += '.xz'
         with open('template', 'wt') as file:
             file.write(mail)
         commandline = ['mutt', '-H', 'template', '-a', archdiff_filename]
@@ -206,6 +212,7 @@ def main(options):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mutt', action='store_true')
+    parser.add_argument('--compress-diff', choices=('gzip', 'xz'))
     parser.add_argument('-a', '--architectures', metavar='<arch>', nargs=2, default=['i386', 'amd64'])
     parser.add_argument('-f', '--force', action='store_true')
     parser.add_argument('package', metavar='<package>')
