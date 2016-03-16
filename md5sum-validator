@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # encoding=UTF-8
 
-# Copyright © 2011, 2013, 2014 Jakub Wilk <jwilk@debian.org>
+# Copyright © 2011-2016 Jakub Wilk <jwilk@debian.org>
 
 # Redistribution and use in source and compiled forms, with or without
 # modification, are permitted under any circumstances. No warranty.
@@ -86,13 +86,13 @@ def do_qa(options):
         ]
     for architecture in options.architectures:
         for section in 'main', 'contrib', 'non-free':
-            url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.gz'.format(
+            url = '{mirror}/dists/{dist}/{section}/binary-{arch}/Packages.xz'.format(
                 mirror=options.mirror,
                 dist=options.distribution,
                 section=section,
                 arch=architecture
             )
-            with misc.download(url, pipe='gzip -dc') as package_tags:
+            with misc.download(url, pipe='xz -dc') as package_tags:
                 with text_wrapper(package_tags) as package_tags:
                     for pkgdata in apt_pkg.TagFile(package_tags):
                         if pkgdata.get('Multi-Arch', '') == 'same':
