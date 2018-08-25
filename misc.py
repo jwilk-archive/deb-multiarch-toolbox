@@ -1,9 +1,7 @@
 # encoding=UTF-8
 
 # Copyright © 2011, 2014 Jakub Wilk <jwilk@jwilk.net>
-
-# Redistribution and use in source and compiled forms, with or without
-# modification, are permitted under any circumstances. No warranty.
+# SPDX-License-Identifier: MIT
 
 from __future__ import print_function
 
